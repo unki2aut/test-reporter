@@ -20,7 +20,7 @@ const input: Record<string, string> = {
   'use-actions-summary': 'false',
   'badge-title': 'tests',
   'report-title': '',
-  'collapsed': 'auto',
+  collapsed: 'auto',
   'directory-mapping': 'mnt/extra-addons:mypath',
   token: '***'
 }
