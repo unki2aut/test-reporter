@@ -56,7 +56,6 @@ jest.unstable_mockModule('@actions/github', () => ({
   }
 }))
 
-const {LocalFileProvider} = await import('../src/input-providers/local-file-provider.js')
 jest.unstable_mockModule('../src/input-providers/local-file-provider.js', () => ({
   LocalFileProvider: jest.fn().mockImplementation(() => ({
     load: jest.fn(),
@@ -71,7 +70,7 @@ describe('integration test', () => {
       'report-tb-short.xml': [
         {
           file: 'report-tb-short.xml',
-          content: fs.readFileSync(__dirname + '/fixtures/external/pytest/report-tb-short.xml', {encoding: 'utf8'})
+          content: fs.readFileSync(`${__dirname}/fixtures/external/pytest/report-tb-short.xml`, {encoding: 'utf8'})
         }
       ]
     })
