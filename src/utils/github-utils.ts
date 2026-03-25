@@ -1,22 +1,30 @@
 import {createWriteStream} from 'fs'
+import {pipeline} from 'stream/promises'
+import {Readable, Transform} from 'stream'
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
-import type {PullRequest} from '@octokit/webhooks-types'
-import * as stream from 'stream'
-import {promisify} from 'util'
-import got from 'got'
-const asyncStream = promisify(stream.pipeline)
+import type {PullRequest, WorkflowRunEvent} from '@octokit/webhooks-types'
 
 export function getCheckRunContext(): {sha: string; runId: number} {
   if (github.context.eventName === 'workflow_run') {
     core.info('Action was triggered by workflow_run: using SHA and RUN_ID from triggering workflow')
-    const event = github.context.payload
+    const event = github.context.payload as WorkflowRunEvent
     if (!event.workflow_run) {
       throw new Error("Event of type 'workflow_run' is missing 'workflow_run' field")
     }
+    const prs = event.workflow_run.pull_requests ?? []
+    // For `workflow_run`, we want to report against the PR commit when possible so annotations land
+    // on the contributor's changes. Prefer the PR whose `head.ref` matches `workflow_run.head_branch`,
+    // then fall back to the first PR head SHA, and finally to `workflow_run.head_sha` for non-PR runs.
+    const prShaMatch = prs.find(pr => pr.head?.ref === event.workflow_run.head_branch)?.head?.sha
+    const prShaFirst = prs[0]?.head?.sha
+    const sha = prShaMatch ?? prShaFirst ?? event.workflow_run.head_sha
+    if (!sha) {
+      throw new Error('Unable to resolve SHA from workflow_run (no PR head.sha or head_sha)')
+    }
     return {
-      sha: event.workflow_run.head_commit.id,
+      sha,
       runId: event.workflow_run.id
     }
   }
@@ -47,37 +55,33 @@ export async function downloadArtifact(
       archive_format: 'zip'
     })
 
-    const headers = {
-      Authorization: `Bearer ${token}`
-    }
-    const resp = await got(req.url, {
-      headers,
-      followRedirect: false
+    const response = await fetch(req.url, {
+      headers: {Authorization: `Bearer ${token}`},
+      redirect: 'follow'
     })
 
-    core.info(`Fetch artifact URL: ${resp.statusCode} ${resp.statusMessage}`)
-    if (resp.statusCode !== 302) {
-      throw new Error('Fetch artifact URL failed: received unexpected status code')
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}`)
+    }
+    if (!response.body) {
+      throw new Error('Response body is empty')
     }
 
-    const url = resp.headers.location
-    if (url === undefined) {
-      const receivedHeaders = Object.keys(resp.headers)
-      core.info(`Received headers: ${receivedHeaders.join(', ')}`)
-      throw new Error('Location header was not found in API response')
-    }
-    if (typeof url !== 'string') {
-      throw new Error(`Location header has unexpected value: ${url}`)
-    }
+    core.info(`Downloading from ${response.url}`)
 
-    const downloadStream = got.stream(url, {headers})
+    const readable = Readable.fromWeb(response.body)
     const fileWriterStream = createWriteStream(fileName)
 
-    core.info(`Downloading ${url}`)
-    downloadStream.on('downloadProgress', ({transferred}) => {
-      core.info(`Progress: ${transferred} B`)
+    let transferred = 0
+    const progress = new Transform({
+      transform(chunk, _encoding, callback) {
+        transferred += chunk.length
+        core.info(`Progress: ${transferred} B`)
+        callback(null, chunk)
+      }
     })
-    await asyncStream(downloadStream, fileWriterStream)
+
+    await pipeline(readable, progress, fileWriterStream)
   } finally {
     core.endGroup()
   }
@@ -121,7 +125,11 @@ async function listGitTree(octokit: InstanceType<typeof GitHub>, sha: string, pa
     if (tr.type === 'blob') {
       result.push(file)
     } else if (tr.type === 'tree' && truncated) {
-      const files = await listGitTree(octokit, tr.sha as string, `${file}/`)
+      if (!tr.sha) {
+        core.warning(`Skipping tree ${file}: missing SHA`)
+        continue
+      }
+      const files = await listGitTree(octokit, tr.sha, `${file}/`)
       result.push(...files)
     }
   }

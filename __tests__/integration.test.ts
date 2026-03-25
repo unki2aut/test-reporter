@@ -1,5 +1,10 @@
+import {jest, describe, it, expect} from '@jest/globals'
 import fs from 'fs'
-import {LocalFileProvider} from '../src/input-providers/local-file-provider'
+import {fileURLToPath} from 'url'
+import {dirname} from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const input: Record<string, string> = {
   name: 'Test Results',
@@ -10,44 +15,59 @@ const input: Record<string, string> = {
   'list-tests': 'all',
   'max-annotations': '10',
   'fail-on-error': 'true',
+  'fail-on-empty': 'true',
   'only-summary': 'false',
+  'use-actions-summary': 'false',
+  'badge-title': 'tests',
+  'report-title': '',
+  'collapsed': 'auto',
   'directory-mapping': 'mnt/extra-addons:mypath',
   token: '***'
 }
 
 const update = jest.fn().mockReturnValue({data: {}, status: 0})
 
-jest.mock('@actions/core', () => ({
-  getInput: jest.fn().mockImplementation((name: string) => input[name]),
+jest.unstable_mockModule('@actions/core', () => ({
+  getInput: jest.fn().mockImplementation((name: string) => input[name as keyof typeof input] ?? ''),
   setFailed: jest.fn(),
   setOutput: jest.fn(),
   startGroup: jest.fn(),
   endGroup: jest.fn(),
   info: jest.fn(),
-  warning: jest.fn()
-}))
-jest.mock('@actions/github', () => {
-  return {
-    getOctokit: jest.fn().mockReturnValue({
-      rest: {
-        checks: {
-          update,
-          create: jest.fn().mockReturnValue({data: {}})
-        }
-      }
-    }),
-    context: {
-      eventName: '',
-      payload: {}
-    }
+  warning: jest.fn(),
+  summary: {
+    addRaw: jest.fn().mockReturnThis(),
+    write: jest.fn()
   }
-})
+}))
 
-jest.mock('../src/input-providers/local-file-provider')
+jest.unstable_mockModule('@actions/github', () => ({
+  getOctokit: jest.fn().mockReturnValue({
+    rest: {
+      checks: {
+        update,
+        create: jest.fn().mockReturnValue({data: {html_url: 'https://example.com'}})
+      }
+    }
+  }),
+  context: {
+    eventName: '',
+    payload: {}
+  }
+}))
+
+const {LocalFileProvider} = await import('../src/input-providers/local-file-provider.js')
+jest.unstable_mockModule('../src/input-providers/local-file-provider.js', () => ({
+  LocalFileProvider: jest.fn().mockImplementation(() => ({
+    load: jest.fn(),
+    listTrackedFiles: jest.fn()
+  }))
+}))
 
 describe('integration test', () => {
   it('pytest', async () => {
-    jest.spyOn(LocalFileProvider.prototype, 'load').mockResolvedValue({
+    // Setup the mock before importing main
+    const mockLoad = jest.fn().mockResolvedValue({
       'report-tb-short.xml': [
         {
           file: 'report-tb-short.xml',
@@ -55,11 +75,16 @@ describe('integration test', () => {
         }
       ]
     })
-    jest
-      .spyOn(LocalFileProvider.prototype, 'listTrackedFiles')
-      .mockResolvedValue(['mypath/product_changes/tests/first_test.py'])
+    const mockListTrackedFiles = jest.fn().mockResolvedValue(['mypath/product_changes/tests/first_test.py'])
 
-    await import('../src/main')
+    jest.unstable_mockModule('../src/input-providers/local-file-provider.js', () => ({
+      LocalFileProvider: jest.fn().mockImplementation(() => ({
+        load: mockLoad,
+        listTrackedFiles: mockListTrackedFiles
+      }))
+    }))
+
+    await import('../src/main.js')
     // trick to wait for the pending "main" Promise
     await new Promise(resolve => setTimeout(resolve))
 

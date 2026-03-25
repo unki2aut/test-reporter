@@ -8,17 +8,18 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-test:
     name: Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js 24.x
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 24.x
-      - run: node --version
+          node-version-file: '.nvmrc'
       - run: npm ci
       - run: npm run build
       - run: npm run format-check
@@ -26,8 +27,8 @@ jobs:
       - run: npm test
 
       - name: Upload test results
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: __tests__/__results__/*.xml

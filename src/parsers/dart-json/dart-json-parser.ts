@@ -1,6 +1,6 @@
-import {ParseOptions, TestParser} from '../../test-parser'
+import {ParseOptions, TestParser} from '../../test-parser.js'
 
-import {getBasePath, normalizeFilePath} from '../../utils/path-utils'
+import {getBasePath, normalizeFilePath} from '../../utils/path-utils.js'
 
 import {
   ReportEvent,
@@ -17,7 +17,7 @@ import {
   isDoneEvent,
   isMessageEvent,
   MessageEvent
-} from './dart-json-types'
+} from './dart-json-types.js'
 
 import {
   TestExecutionResult,
@@ -26,10 +26,15 @@ import {
   TestGroupResult,
   TestCaseResult,
   TestCaseError
-} from '../../test-results'
+} from '../../test-results.js'
 
 class TestRun {
-  constructor(readonly path: string, readonly suites: TestSuite[], readonly success: boolean, readonly time: number) {}
+  constructor(
+    readonly path: string,
+    readonly suites: TestSuite[],
+    readonly success: boolean,
+    readonly time: number
+  ) {}
 }
 
 class TestSuite {
@@ -74,7 +79,10 @@ class TestCase {
 export class DartJsonParser implements TestParser {
   assumedWorkDir: string | undefined
 
-  constructor(readonly options: ParseOptions, readonly sdk: 'dart' | 'flutter') {}
+  constructor(
+    readonly options: ParseOptions,
+    readonly sdk: 'dart' | 'flutter'
+  ) {}
 
   async parse(path: string, content: string): Promise<TestRunResult> {
     const tr = this.getTestRun(path, content)
@@ -115,7 +123,7 @@ export class DartJsonParser implements TestParser {
         const group = suite.groups[evt.test.groupIDs[evt.test.groupIDs.length - 1]]
         group.tests.push(test)
         tests[evt.test.id] = test
-      } else if (isTestDoneEvent(evt) && !evt.hidden && tests[evt.testID]) {
+      } else if (isTestDoneEvent(evt) && tests[evt.testID]) {
         tests[evt.testID].testDone = evt
       } else if (isErrorEvent(evt) && tests[evt.testID]) {
         tests[evt.testID].error = evt
@@ -144,14 +152,16 @@ export class DartJsonParser implements TestParser {
 
     return groups.map(group => {
       group.tests.sort((a, b) => (a.testStart.test.line ?? 0) - (b.testStart.test.line ?? 0))
-      const tests = group.tests.map(tc => {
-        const error = this.getError(suite, tc)
-        const testName =
-          group.group.name !== undefined && tc.testStart.test.name.startsWith(group.group.name)
-            ? tc.testStart.test.name.slice(group.group.name.length).trim()
-            : tc.testStart.test.name.trim()
-        return new TestCaseResult(testName, tc.result, tc.time, error)
-      })
+      const tests = group.tests
+        .filter(tc => !tc.testDone?.hidden)
+        .map(tc => {
+          const error = this.getError(suite, tc)
+          const testName =
+            group.group.name !== undefined && tc.testStart.test.name.startsWith(group.group.name)
+              ? tc.testStart.test.name.slice(group.group.name.length).trim()
+              : tc.testStart.test.name.trim()
+          return new TestCaseResult(testName, tc.result, tc.time, error)
+        })
       return new TestGroupResult(group.group.name, tests)
     })
   }
@@ -232,13 +242,13 @@ export class DartJsonParser implements TestParser {
   private getRelativePath(path: string): string {
     const prefix = 'file://'
     if (path.startsWith(prefix)) {
-      path = path.substr(prefix.length)
+      path = path.substring(prefix.length)
     }
 
     path = normalizeFilePath(path)
     const workDir = this.getWorkDir(path)
     if (workDir !== undefined && path.startsWith(workDir)) {
-      path = path.substr(workDir.length)
+      path = path.substring(workDir.length)
     }
     return path
   }

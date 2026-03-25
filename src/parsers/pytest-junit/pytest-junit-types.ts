@@ -1,4 +1,4 @@
-import {Failure} from '../java-junit/java-junit-types'
+import {Failure} from '../java-junit/java-junit-types.js'
 
 export interface JunitReport {
   testsuites: TestSuites

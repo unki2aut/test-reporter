@@ -1,10 +1,15 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import {PytestJunitParser} from '../src/parsers/pytest-junit/pytest-junit-parser'
-import {ParseOptions} from '../src/test-parser'
-import {normalizeFilePath} from '../src/utils/path-utils'
-import {getAnnotations} from '../src/report/get-annotations'
+import {PytestJunitParser} from '../src/parsers/pytest-junit/pytest-junit-parser.js'
+import {ParseOptions} from '../src/test-parser.js'
+import {normalizeFilePath} from '../src/utils/path-utils.js'
+import {getAnnotations} from '../src/report/get-annotations.js'
+
+import {fileURLToPath} from 'url'
+import {dirname} from 'path'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 describe('pytest-junit tests', () => {
   it('test with one successful test', async () => {

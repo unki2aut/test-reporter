@@ -1,0 +1,11 @@
+[
+  {
+    "path": "opt/trustbit-addons/product_changes/tests/first_test.py",
+    "start_line": 6,
+    "end_line": 6,
+    "annotation_level": "failure",
+    "title": "pytest ► product_changes.tests.first_test.MyTestCase ► test_something",
+    "raw_details": "opt/trustbit-addons/product_changes/tests/first_test.py:6: in test_something\n    raise AssertionError(\"test\")\nE   AssertionError: test",
+    "message": "Failed test found in:\n  opt/trustbit-addons/product_changes/tests/first_test.py\nError:\n  raise AssertionError(\"test\")"
+  }
+]

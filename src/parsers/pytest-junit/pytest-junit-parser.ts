@@ -1,7 +1,7 @@
-import {ParseOptions, TestParser} from '../../test-parser'
+import {ParseOptions, TestParser} from '../../test-parser.js'
 import {parseStringPromise} from 'xml2js'
 
-import {JunitReport, TestCase, TestSuite} from './pytest-junit-types'
+import {JunitReport, TestCase, TestSuite} from './pytest-junit-types.js'
 
 import {
   TestExecutionResult,
@@ -10,8 +10,8 @@ import {
   TestGroupResult,
   TestCaseResult,
   TestCaseError
-} from '../../test-results'
-import {getBasePath, normalizeFilePath} from '../../utils/path-utils'
+} from '../../test-results.js'
+import {getBasePath, normalizeFilePath} from '../../utils/path-utils.js'
 
 export class PytestJunitParser implements TestParser {
   assumedWorkDir: string | undefined
@@ -35,7 +35,7 @@ export class PytestJunitParser implements TestParser {
     const suites: TestSuiteResult[] =
       junit.testsuites.testsuite === undefined
         ? []
-        : junit.testsuites.testsuite.map(ts => {
+        : junit.testsuites.testsuite.map((ts: TestSuite) => {
             const name = ts.$.name.trim()
             const time = parseFloat(ts.$.time) * 1000
             return new TestSuiteResult(name, this.getGroups(ts), time)
